@@ -48,18 +48,16 @@ pipeline {
         stage('Health Check') {
             steps {
                 script {
-                    def response = sh(
-                        script: """
-                            echo 'Виконання curl запиту...'
-                            curl -v -s -o /dev/null -w '%{http_code}' http://${AZURE_VM_HOST}
-                        """,
-                        returnStdout: true
-                    ).trim()
+                    echo "Виконання перевірки здоров'я..."
 
-                    if (response != "200") {
-                        error "Перевірка здоров'я не вдалася! Сайт повернув HTTP ${response}"
+                    def response = sh(script: "curl -s -o /dev/null -w %{http_code} http://${AZURE_VM_HOST}", returnStdout: true).trim()
+
+                    echo "Відповідь від сервера: ${response}"
+
+                    if (response == "200") {
+                        echo "Перевірка здоров'я успішна! Сайт працює нормально."
                     } else {
-                        echo "Перевірка здоров'я успішна!"
+                        error "Перевірка здоров'я не вдалася! Сайт повернув HTTP ${response}"
                     }
                 }
             }
