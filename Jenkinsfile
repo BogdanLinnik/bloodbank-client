@@ -1,100 +1,139 @@
 pipeline {
     agent any
     
+    environment {
+        // Визначення глобальних змінних середовища
+        CONFIG_FILE_ID = 'azure_config'
+    }
+
     triggers {
         githubPush()
     }
-    
+
     stages {
+        // Завантаження конфігурації
+        stage('Load Configuration') {
+            steps {
+                configFileProvider([configFile(fileId: CONFIG_FILE_ID, variable: 'CONFIG_FILE')]) {
+                    script {
+                        def props = readProperties file: CONFIG_FILE
+                        env.AZURE_VM_USER = props['AZURE_VM_USER']
+                        env.AZURE_VM_HOST = props['AZURE_VM_HOST']
+                    }
+                }
+            }
+        }
+
+        // Відлагодження змінних
         stage('Debug Variables') {
             steps {
                 script {
-                    println "=== Перевірка змінних ==="
-                    println "AZURE_VM_USER: ${AZURE_VM_USER}"
-                    println "AZURE_VM_HOST: ${AZURE_VM_HOST}"
-                    println "=== Кінець перевірки ==="
+                    echo """
+                        === Перевірка змінних ===
+                        AZURE_VM_USER: ${AZURE_VM_USER}
+                        AZURE_VM_HOST: ${AZURE_VM_HOST}
+                        === Кінець перевірки ===
+                    """.stripIndent()
                 }
             }
         }
-        
+
+        // Отримання коду
         stage('Fetch Code') {
             steps {
                 sshagent(['azure-vm-ssh-key']) {
-                    sh '''
-                        echo "Спроба підключення як користувач: $AZURE_VM_USER"
-                        echo "До хоста: $AZURE_VM_HOST"
-                        
-                        ssh -v $AZURE_VM_USER@$AZURE_VM_HOST "
-                            echo 'SSH з'єднання успішне';
-                            echo 'Поточна директорія:';
-                            pwd;
-                            cd /var/www/html && \
-                            echo 'Перейшли до /var/www/html';
-                            git fetch origin && \
-                            echo 'Git fetch виконано';
-                            git reset --hard origin/master && \
-                            echo 'Git reset виконано';
-                        "
-                    '''
+                    script {
+                        def sshCmd = """
+                            echo "Спроба підключення як користувач: ${AZURE_VM_USER}"
+                            echo "До хоста: ${AZURE_VM_HOST}"
+
+                            ssh -v ${AZURE_VM_USER}@${AZURE_VM_HOST} "
+                                echo 'SSH з\\'єднання успішне' && \
+                                echo 'Поточна директорія:' && \
+                                pwd && \
+                                cd /var/www/html && \
+                                echo 'Перейшли до /var/www/html' && \
+                                git fetch origin && \
+                                echo 'Git fetch виконано' && \
+                                git reset --hard origin/master && \
+                                echo 'Git reset виконано'
+                            "
+                        """
+                        sh sshCmd
+                    }
                 }
             }
         }
-        
+
+        // Перезапуск Apache
         stage('Restart Apache') {
             steps {
                 sshagent(['azure-vm-ssh-key']) {
-                    sh '''
-                        echo "Спроба перезапуску Apache..."
-                        ssh $AZURE_VM_USER@$AZURE_VM_HOST "
-                            echo 'Перевірка статусу Apache перед перезапуском:';
-                            sudo systemctl status apache2;
-                            echo 'Перезапуск Apache...';
-                            sudo systemctl restart apache2;
-                            echo 'Перевірка статусу Apache після перезапуску:';
-                            sudo systemctl status apache2;
-                        "
-                    '''
+                    script {
+                        def apacheCmd = """
+                            echo "Спроба перезапуску Apache..."
+                            ssh ${AZURE_VM_USER}@${AZURE_VM_HOST} "
+                                echo 'Перевірка статусу Apache перед перезапуском:' && \
+                                sudo systemctl status apache2 && \
+                                echo 'Перезапуск Apache...' && \
+                                sudo systemctl restart apache2 && \
+                                echo 'Перевірка статусу Apache після перезапуску:' && \
+                                sudo systemctl status apache2
+                            "
+                        """
+                        sh apacheCmd
+                    }
                 }
             }
         }
-        
+
+        // Перевірка здоров'я
         stage('Health Check') {
             steps {
                 script {
-                    println "Виконання перевірки здоров'я для хоста: ${AZURE_VM_HOST}"
-                    
+                    echo "Виконання перевірки здоров'я для хоста: ${AZURE_VM_HOST}"
+
                     def response = sh(
                         script: """
                             echo 'Виконання curl запиту...'
-                            curl -v -s -o /dev/null -w '%{http_code}' http://$AZURE_VM_HOST
+                            curl -v -s -o /dev/null -w '%{http_code}' http://${AZURE_VM_HOST}
                         """,
                         returnStdout: true
                     ).trim()
-                    
-                    println "Отримано код відповіді: ${response}"
-                    
+
+                    echo "Отримано код відповіді: ${response}"
+
                     if (response != "200") {
                         error "Перевірка здоров'я не вдалася! Сайт повернув HTTP ${response}"
                     } else {
-                        println "Перевірка здоров'я успішна!"
+                        echo "Перевірка здоров'я успішна!"
                     }
                 }
             }
         }
     }
-    
+
+    // Пост-кроки виконання
     post {
         always {
-            println "=== Фінальна інформація про виконання ==="
-            println "BUILD_NUMBER: ${env.BUILD_NUMBER}"
-            println "JOB_NAME: ${env.JOB_NAME}"
-            println "WORKSPACE: ${env.WORKSPACE}"
+            script {
+                echo """
+                    === Фінальна інформація про виконання ===
+                    BUILD_NUMBER: ${env.BUILD_NUMBER}
+                    JOB_NAME: ${env.JOB_NAME}
+                    WORKSPACE: ${env.WORKSPACE}
+                """.stripIndent()
+            }
         }
         success {
-            println "Пайплайн успішно завершено!"
+            script {
+                echo "Пайплайн успішно завершено!"
+            }
         }
         failure {
-            println "Пайплайн завершився з помилкою!"
+            script {
+                echo "Пайплайн завершився з помилкою!"
+            }
         }
     }
 }
