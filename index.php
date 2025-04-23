@@ -4,7 +4,7 @@
     ?>
 <!DOCTYPE html>
 <html>
-<?php $title="Bloodbank"; ?>
+<?php $title="Bloodbank | index page"; ?>
 <?php require 'head.php'; ?>
 <body>
     <?php require 'header.php'; ?>
