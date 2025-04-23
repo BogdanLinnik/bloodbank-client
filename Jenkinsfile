@@ -16,9 +16,10 @@ pipeline {
             steps {
                 configFileProvider([configFile(fileId: CONFIG_FILE_ID, variable: 'CONFIG_FILE')]) {
                     script {
-                        def props = readProperties file: CONFIG_FILE
-                        env.AZURE_VM_USER = props['AZURE_VM_USER']
-                        env.AZURE_VM_HOST = props['AZURE_VM_HOST']
+                        // Завантаження змінних з конфіг файлу
+                        def props = load CONFIG_FILE
+                        env.AZURE_VM_USER = sh(script: "grep AZURE_VM_USER ${CONFIG_FILE} | cut -d'=' -f2", returnStdout: true).trim()
+                        env.AZURE_VM_HOST = sh(script: "grep AZURE_VM_HOST ${CONFIG_FILE} | cut -d'=' -f2", returnStdout: true).trim()
                     }
                 }
             }
