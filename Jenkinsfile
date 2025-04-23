@@ -42,7 +42,7 @@ pipeline {
         // Отримання коду
         stage('Fetch Code') {
             steps {
-                sshagent(['azure-vm-ssh-key']) {
+                sshagent(['server_key']) {
                     script {
                         def sshCmd = """
                             echo "Спроба підключення як користувач: ${AZURE_VM_USER}"
@@ -69,7 +69,7 @@ pipeline {
         // Перезапуск Apache
         stage('Restart Apache') {
             steps {
-                sshagent(['azure-vm-ssh-key']) {
+                sshagent(['server_key']) {
                     script {
                         def apacheCmd = """
                             echo "Спроба перезапуску Apache..."
