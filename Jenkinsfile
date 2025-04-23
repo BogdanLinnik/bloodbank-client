@@ -11,7 +11,6 @@ pipeline {
     }
 
     stages {
-        // Завантаження конфігурації
         stage('Load Configuration') {
             steps {
                 configFileProvider([configFile(fileId: CONFIG_FILE_ID, variable: 'CONFIG_FILE')]) {
@@ -25,64 +24,21 @@ pipeline {
             }
         }
 
-        // Відлагодження змінних
-        stage('Debug Variables') {
-            steps {
-                script {
-                    echo """
-                        === Перевірка змінних ===
-                        AZURE_VM_USER: ${AZURE_VM_USER}
-                        AZURE_VM_HOST: ${AZURE_VM_HOST}
-                        === Кінець перевірки ===
-                    """.stripIndent()
-                }
-            }
-        }
-
-        // Отримання коду
         stage('Fetch Code') {
             steps {
-                sshagent(['server_key']) {
+                sshagent(['azure-vm-ssh-key']) {
                     script {
-                        def sshCmd = """
-                            echo "Спроба підключення як користувач: ${AZURE_VM_USER}"
-                            echo "До хоста: ${AZURE_VM_HOST}"
-
-                            ssh -v ${AZURE_VM_USER}@${AZURE_VM_HOST} "
-                                echo 'SSH з\\'єднання успішне' && \
-                                echo 'Поточна директорія:' && \
-                                pwd && \
-                                cd /var/www/html && \
-                                echo 'Перейшли до /var/www/html' && \
-                                git fetch origin && \
-                                echo 'Git fetch виконано' && \
-                                git reset --hard origin/master && \
-                                echo 'Git reset виконано'
-                            "
-                        """
-                        sh sshCmd
+                        sh "ssh ${AZURE_VM_USER}@${AZURE_VM_HOST} 'cd /var/www/html && git fetch origin && git reset --hard origin/master'"
                     }
                 }
             }
         }
 
-        // Перезапуск Apache
         stage('Restart Apache') {
             steps {
-                sshagent(['server_key']) {
+                sshagent(['azure-vm-ssh-key']) {
                     script {
-                        def apacheCmd = """
-                            echo "Спроба перезапуску Apache..."
-                            ssh ${AZURE_VM_USER}@${AZURE_VM_HOST} "
-                                echo 'Перевірка статусу Apache перед перезапуском:' && \
-                                sudo systemctl status apache2 && \
-                                echo 'Перезапуск Apache...' && \
-                                sudo systemctl restart apache2 && \
-                                echo 'Перевірка статусу Apache після перезапуску:' && \
-                                sudo systemctl status apache2
-                            "
-                        """
-                        sh apacheCmd
+                        sh "ssh ${AZURE_VM_USER}@${AZURE_VM_HOST} 'sudo systemctl restart apache2'"
                     }
                 }
             }
@@ -92,8 +48,6 @@ pipeline {
         stage('Health Check') {
             steps {
                 script {
-                    echo "Виконання перевірки здоров'я для хоста: ${AZURE_VM_HOST}"
-
                     def response = sh(
                         script: """
                             echo 'Виконання curl запиту...'
@@ -101,8 +55,6 @@ pipeline {
                         """,
                         returnStdout: true
                     ).trim()
-
-                    echo "Отримано код відповіді: ${response}"
 
                     if (response != "200") {
                         error "Перевірка здоров'я не вдалася! Сайт повернув HTTP ${response}"
