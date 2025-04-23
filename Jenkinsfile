@@ -28,7 +28,7 @@ pipeline {
             steps {
                 sshagent(['azure-vm-ssh-key']) {
                     script {
-                        sh "ssh ${AZURE_VM_USER}@${AZURE_VM_HOST} 'cd /var/www/html && git fetch origin && git reset --hard origin/master'"
+                        sh "ssh ${AZURE_VM_USER}@${AZURE_VM_HOST} 'cd /var/www/html && git pull origin master'"
                     }
                 }
             }
