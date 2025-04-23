@@ -26,7 +26,7 @@ pipeline {
 
         stage('Fetch Code') {
             steps {
-                sshagent(['azure-vm-ssh-key']) {
+                sshagent(['server_key']) {
                     script {
                         sh "ssh ${AZURE_VM_USER}@${AZURE_VM_HOST} 'cd /var/www/html && git pull origin master'"
                     }
@@ -36,7 +36,7 @@ pipeline {
 
         stage('Restart Apache') {
             steps {
-                sshagent(['azure-vm-ssh-key']) {
+                sshagent(['server_key']) {
                     script {
                         sh "ssh ${AZURE_VM_USER}@${AZURE_VM_HOST} 'sudo systemctl restart apache2'"
                     }
